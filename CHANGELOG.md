@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-14
+
 First version. It was written without a MOVA robot at hand, from the Dreame
 integration of the Gladys store and the Home Assistant integration
 Tasshack/dreame-vacuum: the tests run against a fake MOVAhome cloud, never the
@@ -42,4 +44,5 @@ real one. Please report what you see with the **Diagnostic** action.
   feature names, room names, error messages, widgets, scene cards and the user
   documentation.
 
-[Unreleased]: https://github.com/gboulvin/Gladys-Mova/commits/main
+[Unreleased]: https://github.com/gboulvin/Gladys-Mova/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/gboulvin/Gladys-Mova/releases/tag/v0.1.0

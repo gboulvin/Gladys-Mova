@@ -1,6 +1,6 @@
 {
   "name": "gladys-mova",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Gladys Assistant integration for the robot vacuums of a MOVAhome account",
   "type": "module",
