@@ -1,0 +1,32 @@
+{
+  "name": "gladys-mova",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Gladys Assistant integration for the robot vacuums of a MOVAhome account",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@gladysassistant/integration-sdk": "^0.16.0",
+    "mqtt": "^5.16.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "aedes": "^1.2.0",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.9",
+    "ws": "^8.23.0"
+  },
+  "license": "Apache-2.0"
+}

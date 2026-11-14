@@ -1,0 +1,1008 @@
+{
+  "manifest_version": 1,
+  "type": "device",
+  "categories": ["appliances"],
+  "name": "MOVA",
+  "description": {
+    "en": "MOVA robot vacuums (MOVAhome): cleaning, suction, mop, rooms, shortcuts, map, scenes.",
+    "fr": "Aspirateurs robots MOVA (MOVAhome) : nettoyage, serpillière, pièces, raccourcis, carte, scènes.",
+    "de": "MOVA-Saugroboter (MOVAhome): Reinigung, Wischen, Räume, Verknüpfungen, Karte, Szenen.",
+    "es": "Robots aspiradores MOVA (MOVAhome): limpieza, fregado, habitaciones, atajos, mapa, escenas."
+  },
+  "version": "0.0.0",
+  "docker_image": "ghcr.io/gboulvin/gladys-mova:0.0.0",
+  "gladys_version": ">=5.1.0",
+  "cover_image": "https://raw.githubusercontent.com/gboulvin/Gladys-Mova/main/cover.jpg",
+  "transports": ["cloud"],
+  "config_schema": [
+    {
+      "key": "mova_account",
+      "type": "section",
+      "label": {
+        "en": "MOVAhome account",
+        "fr": "Compte MOVAhome",
+        "de": "MOVAhome-Konto",
+        "es": "Cuenta MOVAhome"
+      },
+      "description": {
+        "en": "Link the account your robots are paired with, in the Actions box below: its email (or phone number), its password and its region. The password is only used to log in: a fingerprint is kept to reconnect silently, never the password itself. An account created with Google, Apple or a text message code has no password: set one first in the MOVAhome app.",
+        "fr": "Liez le compte auquel vos robots sont associés, dans la boîte Actions ci-dessous : son e-mail (ou numéro de téléphone), son mot de passe et sa région. Le mot de passe ne sert qu'à la connexion : seule une empreinte est conservée pour se reconnecter en silence, jamais le mot de passe lui-même. Un compte créé avec Google, Apple ou un code reçu par SMS n'a pas de mot de passe : définissez-en un d'abord dans l'application MOVAhome.",
+        "de": "Verknüpfe das Konto, mit dem deine Roboter gekoppelt sind, im Bereich „Aktionen“ unten: seine E-Mail-Adresse (oder Telefonnummer), sein Passwort und seine Region. Das Passwort dient nur der Anmeldung: Gespeichert wird nur ein Fingerabdruck, um die Verbindung still wiederherzustellen, nie das Passwort selbst. Ein mit Google, Apple oder einem SMS-Code erstelltes Konto hat kein Passwort: Lege zuerst eines in der MOVAhome-App fest.",
+        "es": "Vincule la cuenta a la que están asociados sus robots, en el cuadro Acciones de abajo: su correo electrónico (o número de teléfono), su contraseña y su región. La contraseña solo sirve para iniciar sesión: se conserva una huella para volver a conectarse en segundo plano, nunca la contraseña en sí. Una cuenta creada con Google, Apple o un código recibido por SMS no tiene contraseña: defina una primero en la aplicación MOVAhome."
+      }
+    },
+    {
+      "key": "language",
+      "type": "select",
+      "display": "radio",
+      "label": {
+        "en": "Language of the names",
+        "fr": "Langue des noms",
+        "de": "Sprache der Namen",
+        "es": "Idioma de los nombres"
+      },
+      "description": {
+        "en": "Language of the feature names, room names and error texts. Feature names are set when a device is created: to rename them after a change, delete and add the device again.",
+        "fr": "Langue des noms de fonctionnalités, des pièces et des textes d'erreur. Les noms de fonctionnalités sont fixés à la création d'un appareil : pour les renommer après un changement, supprimez puis rajoutez l'appareil.",
+        "de": "Sprache der Funktionsnamen, Raumnamen und Fehlertexte. Funktionsnamen werden beim Anlegen eines Geräts festgelegt: Um sie nach einer Änderung umzubenennen, lösche das Gerät und füge es erneut hinzu.",
+        "es": "Idioma de los nombres de las funciones, de las habitaciones y de los textos de error. Los nombres de las funciones se fijan al crear un dispositivo: para cambiarlos tras una modificación, elimine el dispositivo y vuelva a añadirlo."
+      },
+      "required": false,
+      "default": "fr",
+      "options": [
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français",
+            "de": "Französisch",
+            "es": "Francés"
+          }
+        },
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais",
+            "de": "Englisch",
+            "es": "Inglés"
+          }
+        },
+        {
+          "value": "de",
+          "label": {
+            "en": "German",
+            "fr": "Allemand",
+            "de": "Deutsch",
+            "es": "Alemán"
+          }
+        },
+        {
+          "value": "es",
+          "label": {
+            "en": "Spanish",
+            "fr": "Espagnol",
+            "de": "Spanisch",
+            "es": "Español"
+          }
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "key": "mova_link",
+      "label": {
+        "en": "Link the account",
+        "fr": "Lier le compte",
+        "de": "Konto verknüpfen",
+        "es": "Vincular la cuenta"
+      },
+      "description": {
+        "en": "Logs in to the MOVAhome cloud, then lists your robots. The region is the one chosen in the app when the account was created.",
+        "fr": "Se connecte au cloud MOVAhome, puis liste vos robots. La région est celle choisie dans l'application à la création du compte.",
+        "de": "Meldet sich bei der MOVAhome-Cloud an und listet dann deine Roboter auf. Die Region ist die, die bei der Kontoerstellung in der App gewählt wurde.",
+        "es": "Inicia sesión en la nube MOVAhome y luego enumera sus robots. La región es la elegida en la aplicación al crear la cuenta."
+      },
+      "timeout_seconds": 120,
+      "fields": [
+        {
+          "key": "username",
+          "type": "string",
+          "required": true,
+          "label": {
+            "en": "Email or phone number",
+            "fr": "E-mail ou numéro de téléphone",
+            "de": "E-Mail-Adresse oder Telefonnummer",
+            "es": "Correo electrónico o número de teléfono"
+          },
+          "placeholder": {
+            "en": "user@example.com",
+            "fr": "utilisateur@exemple.fr",
+            "de": "benutzer@beispiel.de",
+            "es": "usuario@ejemplo.es"
+          }
+        },
+        {
+          "key": "password",
+          "type": "string",
+          "required": true,
+          "label": {
+            "en": "Password",
+            "fr": "Mot de passe",
+            "de": "Passwort",
+            "es": "Contraseña"
+          },
+          "description": {
+            "en": "Shown while you type (Gladys cannot mask a field of an action yet), never stored: only the fingerprint the MOVAhome app sends itself is kept.",
+            "fr": "Affiché pendant la saisie (Gladys ne sait pas encore masquer un champ d'action), jamais enregistré : seule l'empreinte que l'application MOVAhome envoie elle-même est conservée.",
+            "de": "Wird beim Tippen angezeigt (Gladys kann ein Aktionsfeld noch nicht maskieren), nie gespeichert: Nur der Fingerabdruck, den die MOVAhome-App selbst sendet, wird aufbewahrt.",
+            "es": "Se muestra mientras escribe (Gladys aún no puede ocultar un campo de acción) y nunca se guarda: solo se conserva la huella que envía la propia aplicación MOVAhome."
+          }
+        },
+        {
+          "key": "region",
+          "type": "select",
+          "required": false,
+          "default": "eu",
+          "label": {
+            "en": "Account region",
+            "fr": "Région du compte",
+            "de": "Region des Kontos",
+            "es": "Región de la cuenta"
+          },
+          "options": [
+            {
+              "value": "eu",
+              "label": {
+                "en": "Europe",
+                "fr": "Europe",
+                "de": "Europa",
+                "es": "Europa"
+              }
+            },
+            {
+              "value": "us",
+              "label": {
+                "en": "North America",
+                "fr": "Amérique du Nord",
+                "de": "Nordamerika",
+                "es": "Norteamérica"
+              }
+            },
+            {
+              "value": "cn",
+              "label": {
+                "en": "Mainland China",
+                "fr": "Chine continentale",
+                "de": "Festlandchina",
+                "es": "China continental"
+              }
+            },
+            {
+              "value": "sg",
+              "label": {
+                "en": "Asia (Singapore)",
+                "fr": "Asie (Singapour)",
+                "de": "Asien (Singapur)",
+                "es": "Asia (Singapur)"
+              }
+            },
+            {
+              "value": "kr",
+              "label": {
+                "en": "South Korea",
+                "fr": "Corée du Sud",
+                "de": "Südkorea",
+                "es": "Corea del Sur"
+              }
+            }
+          ],
+          "description": {
+            "en": "Europe when left empty.",
+            "fr": "Europe si vous ne choisissez rien.",
+            "de": "Europa, wenn leer.",
+            "es": "Europa si no elige nada."
+          }
+        }
+      ]
+    },
+    {
+      "key": "mova_unlink",
+      "label": {
+        "en": "Unlink the account",
+        "fr": "Délier le compte",
+        "de": "Konto trennen",
+        "es": "Desvincular la cuenta"
+      },
+      "description": {
+        "en": "Forgets the session and the password fingerprint; the robots are no longer discovered.",
+        "fr": "Oublie la session et l'empreinte du mot de passe ; les robots ne sont plus découverts.",
+        "de": "Vergisst die Sitzung und den Passwort-Fingerabdruck; die Roboter werden nicht mehr entdeckt.",
+        "es": "Olvida la sesión y la huella de la contraseña; los robots ya no se descubren."
+      },
+      "timeout_seconds": 30
+    },
+    {
+      "key": "mova_diagnostic",
+      "label": {
+        "en": "Diagnostic",
+        "fr": "Diagnostic",
+        "de": "Diagnose",
+        "es": "Diagnóstico"
+      },
+      "description": {
+        "en": "Shows what the integration sees of your robots (model, firmware, raw values, map reading). Paste it into a forum post or a GitHub issue to report a problem: it contains no email, no identifier and no room name.",
+        "fr": "Affiche ce que l'intégration voit de vos robots (modèle, firmware, valeurs brutes, lecture de la carte). Collez-le dans un message du forum ou une issue GitHub pour signaler un problème : il ne contient ni e-mail, ni identifiant, ni nom de pièce.",
+        "de": "Zeigt, was die Integration von deinen Robotern sieht (Modell, Firmware, Rohwerte, Lesen der Karte). Füge es in einen Forumsbeitrag oder ein GitHub-Issue ein, um ein Problem zu melden: Es enthält weder E-Mail-Adresse noch Kennung noch Raumnamen.",
+        "es": "Muestra lo que la integración ve de sus robots (modelo, firmware, valores brutos, lectura del mapa). Péguelo en un mensaje del foro o en una issue de GitHub para informar de un problema: no contiene ni correo electrónico, ni identificador, ni nombre de habitación."
+      },
+      "timeout_seconds": 120,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "required": false,
+          "label": {
+            "en": "Robot (all when empty)",
+            "fr": "Robot (tous si vide)",
+            "de": "Roboter (alle, wenn leer)",
+            "es": "Robot (todos si está vacío)"
+          }
+        }
+      ]
+    }
+  ],
+  "scene_triggers": [
+    {
+      "key": "cleaning_started",
+      "label": {
+        "en": "Cleaning started",
+        "fr": "Nettoyage démarré",
+        "de": "Reinigung gestartet",
+        "es": "Limpieza iniciada"
+      },
+      "description": {
+        "en": "A robot started a cleaning task (from Gladys, the app, a schedule or its button).",
+        "fr": "Un robot a démarré une tâche de nettoyage (depuis Gladys, l'application, une programmation ou son bouton).",
+        "de": "Ein Roboter hat eine Reinigung gestartet (über Gladys, die App, einen Zeitplan oder seine Taste).",
+        "es": "Un robot ha iniciado una tarea de limpieza (desde Gladys, la aplicación, una programación o su botón)."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Robot",
+            "fr": "Robot",
+            "de": "Roboter",
+            "es": "Robot"
+          },
+          "description": {
+            "en": "Leave empty for any robot.",
+            "fr": "Laissez vide pour tous les robots.",
+            "de": "Leer lassen für alle Roboter.",
+            "es": "Deje vacío para cualquier robot."
+          }
+        }
+      ]
+    },
+    {
+      "key": "cleaning_finished",
+      "label": {
+        "en": "Cleaning finished",
+        "fr": "Nettoyage terminé",
+        "de": "Reinigung beendet",
+        "es": "Limpieza terminada"
+      },
+      "description": {
+        "en": "A robot ended its cleaning task, completed or stopped.",
+        "fr": "Un robot a terminé sa tâche de nettoyage, achevée ou arrêtée.",
+        "de": "Ein Roboter hat seine Reinigung beendet, abgeschlossen oder abgebrochen.",
+        "es": "Un robot ha terminado su tarea de limpieza, completada o detenida."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Robot",
+            "fr": "Robot",
+            "de": "Roboter",
+            "es": "Robot"
+          },
+          "description": {
+            "en": "Leave empty for any robot.",
+            "fr": "Laissez vide pour tous les robots.",
+            "de": "Leer lassen für alle Roboter.",
+            "es": "Deje vacío para cualquier robot."
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "area",
+          "type": "number",
+          "label": {
+            "en": "Cleaned area (m²)",
+            "fr": "Surface nettoyée (m²)",
+            "de": "Gereinigte Fläche (m²)",
+            "es": "Superficie limpiada (m²)"
+          }
+        },
+        {
+          "key": "duration",
+          "type": "number",
+          "label": {
+            "en": "Duration (min)",
+            "fr": "Durée (min)",
+            "de": "Dauer (min)",
+            "es": "Duración (min)"
+          }
+        }
+      ]
+    },
+    {
+      "key": "robot_error",
+      "label": {
+        "en": "Robot fault",
+        "fr": "Robot en défaut",
+        "de": "Roboterstörung",
+        "es": "Avería del robot"
+      },
+      "description": {
+        "en": "A robot reports a fault that stops it (stuck, bin missing, wheel blocked…).",
+        "fr": "Un robot signale un défaut qui l'arrête (coincé, bac absent, roue bloquée…).",
+        "de": "Ein Roboter meldet eine Störung, die ihn anhält (festgefahren, Behälter fehlt, Rad blockiert…).",
+        "es": "Un robot informa de una avería que lo detiene (atascado, depósito ausente, rueda bloqueada…)."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Robot",
+            "fr": "Robot",
+            "de": "Roboter",
+            "es": "Robot"
+          },
+          "description": {
+            "en": "Leave empty for any robot.",
+            "fr": "Laissez vide pour tous les robots.",
+            "de": "Leer lassen für alle Roboter.",
+            "es": "Deje vacío para cualquier robot."
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "code",
+          "type": "number",
+          "label": {
+            "en": "Error code",
+            "fr": "Code d'erreur",
+            "de": "Fehlercode",
+            "es": "Código de error"
+          }
+        },
+        {
+          "key": "message",
+          "type": "string",
+          "label": {
+            "en": "Error description",
+            "fr": "Description de l'erreur",
+            "de": "Fehlerbeschreibung",
+            "es": "Descripción del error"
+          }
+        }
+      ]
+    },
+    {
+      "key": "consumable_worn",
+      "label": {
+        "en": "Part to replace",
+        "fr": "Pièce à remplacer",
+        "de": "Teil zu ersetzen",
+        "es": "Pieza por sustituir"
+      },
+      "description": {
+        "en": "A wear part of a robot (brush, filter, mop…) comes down to 10 % of its life.",
+        "fr": "Une pièce d'usure d'un robot (brosse, filtre, serpillière…) arrive à 10 % de sa durée de vie.",
+        "de": "Ein Verschleißteil eines Roboters (Bürste, Filter, Mopp…) erreicht 10 % seiner Lebensdauer.",
+        "es": "Una pieza de desgaste de un robot (cepillo, filtro, mopa…) llega al 10 % de su vida útil."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Robot",
+            "fr": "Robot",
+            "de": "Roboter",
+            "es": "Robot"
+          },
+          "description": {
+            "en": "Leave empty for any robot.",
+            "fr": "Laissez vide pour tous les robots.",
+            "de": "Leer lassen für alle Roboter.",
+            "es": "Deje vacío para cualquier robot."
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "part",
+          "type": "string",
+          "label": {
+            "en": "Part",
+            "fr": "Pièce",
+            "de": "Teil",
+            "es": "Pieza"
+          }
+        },
+        {
+          "key": "remaining",
+          "type": "number",
+          "label": {
+            "en": "Remaining life (%)",
+            "fr": "Durée de vie restante (%)",
+            "de": "Verbleibende Lebensdauer (%)",
+            "es": "Vida útil restante (%)"
+          }
+        }
+      ]
+    }
+  ],
+  "scene_actions": [
+    {
+      "key": "clean_rooms",
+      "label": {
+        "en": "Clean rooms",
+        "fr": "Nettoyer des pièces",
+        "de": "Räume reinigen",
+        "es": "Limpiar habitaciones"
+      },
+      "description": {
+        "en": "Cleans the rooms named, in the order given, with the current suction and mop settings.",
+        "fr": "Nettoie les pièces nommées, dans l'ordre donné, avec les réglages d'aspiration et de serpillière en cours.",
+        "de": "Reinigt die genannten Räume in der angegebenen Reihenfolge mit den aktuellen Saug- und Wischeinstellungen.",
+        "es": "Limpia las habitaciones indicadas, en el orden dado, con los ajustes de succión y fregado actuales."
+      },
+      "timeout_seconds": 30,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Robot",
+            "fr": "Robot",
+            "de": "Roboter",
+            "es": "Robot"
+          },
+          "required": true
+        },
+        {
+          "key": "rooms",
+          "type": "string",
+          "required": true,
+          "label": {
+            "en": "Rooms",
+            "fr": "Pièces",
+            "de": "Räume",
+            "es": "Habitaciones"
+          },
+          "description": {
+            "en": "Room names as Gladys shows them, separated by commas.",
+            "fr": "Noms des pièces tels que Gladys les affiche, séparés par des virgules.",
+            "de": "Raumnamen, wie Gladys sie anzeigt, durch Kommas getrennt.",
+            "es": "Nombres de las habitaciones tal como los muestra Gladys, separados por comas."
+          },
+          "placeholder": {
+            "en": "Kitchen, Living room",
+            "fr": "Cuisine, Salon",
+            "de": "Küche, Wohnzimmer",
+            "es": "Cocina, Salón"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "key": "started",
+          "type": "boolean",
+          "label": {
+            "en": "Cleaning started",
+            "fr": "Nettoyage lancé",
+            "de": "Reinigung gestartet",
+            "es": "Limpieza iniciada"
+          }
+        },
+        {
+          "key": "rooms",
+          "type": "number",
+          "label": {
+            "en": "Number of rooms",
+            "fr": "Nombre de pièces",
+            "de": "Anzahl der Räume",
+            "es": "Número de habitaciones"
+          }
+        }
+      ]
+    },
+    {
+      "key": "run_shortcut",
+      "label": {
+        "en": "Run a shortcut",
+        "fr": "Lancer un raccourci",
+        "de": "Verknüpfung starten",
+        "es": "Ejecutar un atajo"
+      },
+      "description": {
+        "en": "Runs a shortcut of the MOVAhome app, by its name.",
+        "fr": "Lance un raccourci de l'application MOVAhome, par son nom.",
+        "de": "Startet eine Verknüpfung der MOVAhome-App anhand ihres Namens.",
+        "es": "Ejecuta un atajo de la aplicación MOVAhome, por su nombre."
+      },
+      "timeout_seconds": 30,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Robot",
+            "fr": "Robot",
+            "de": "Roboter",
+            "es": "Robot"
+          },
+          "required": true
+        },
+        {
+          "key": "shortcut",
+          "type": "string",
+          "required": true,
+          "label": {
+            "en": "Shortcut",
+            "fr": "Raccourci",
+            "de": "Verknüpfung",
+            "es": "Atajo"
+          },
+          "description": {
+            "en": "Its name as the app shows it.",
+            "fr": "Son nom tel que l'application l'affiche.",
+            "de": "Der Name, wie die App ihn anzeigt.",
+            "es": "Su nombre tal como lo muestra la aplicación."
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "key": "started",
+          "type": "boolean",
+          "label": {
+            "en": "Shortcut started",
+            "fr": "Raccourci lancé",
+            "de": "Verknüpfung gestartet",
+            "es": "Atajo iniciado"
+          }
+        }
+      ]
+    },
+    {
+      "key": "robot_status",
+      "label": {
+        "en": "Read the robot status",
+        "fr": "Lire l'état du robot",
+        "de": "Roboterstatus lesen",
+        "es": "Leer el estado del robot"
+      },
+      "description": {
+        "en": "Gives the state, battery and fault of a robot to the following actions (a message, for instance).",
+        "fr": "Donne l'état, la batterie et le défaut d'un robot aux actions suivantes (un message, par exemple).",
+        "de": "Gibt Zustand, Akku und Störung eines Roboters an die folgenden Aktionen weiter (etwa eine Nachricht).",
+        "es": "Proporciona el estado, la batería y la avería de un robot a las acciones siguientes (un mensaje, por ejemplo)."
+      },
+      "timeout_seconds": 15,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Robot",
+            "fr": "Robot",
+            "de": "Roboter",
+            "es": "Robot"
+          },
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "state",
+          "type": "string",
+          "label": {
+            "en": "State",
+            "fr": "État",
+            "de": "Zustand",
+            "es": "Estado"
+          }
+        },
+        {
+          "key": "battery",
+          "type": "number",
+          "label": {
+            "en": "Battery (%)",
+            "fr": "Batterie (%)",
+            "de": "Akku (%)",
+            "es": "Batería (%)"
+          }
+        },
+        {
+          "key": "cleaning",
+          "type": "boolean",
+          "label": {
+            "en": "Cleaning",
+            "fr": "En nettoyage",
+            "de": "Reinigt",
+            "es": "Limpiando"
+          }
+        },
+        {
+          "key": "docked",
+          "type": "boolean",
+          "label": {
+            "en": "On its base",
+            "fr": "Sur sa base",
+            "de": "In der Station",
+            "es": "En su base"
+          }
+        },
+        {
+          "key": "error",
+          "type": "string",
+          "label": {
+            "en": "Fault (empty when none)",
+            "fr": "Défaut (vide s'il n'y en a pas)",
+            "de": "Störung (leer, wenn keine)",
+            "es": "Avería (vacío si no hay)"
+          }
+        }
+      ]
+    }
+  ],
+  "widgets": [
+    {
+      "key": "robot",
+      "label": {
+        "en": "Robot vacuum",
+        "fr": "Robot aspirateur",
+        "de": "Saugroboter",
+        "es": "Robot aspirador"
+      },
+      "description": {
+        "en": "State, map with the path of the robot, battery, last clean, wear of the parts, everyday buttons.",
+        "fr": "État, carte avec le trajet du robot, batterie, dernier nettoyage, usure, boutons du quotidien.",
+        "de": "Zustand, Karte mit dem Weg des Roboters, Akku, letzte Reinigung, Verschleiß, Alltagstasten.",
+        "es": "Estado, mapa con el recorrido del robot, batería, última limpieza, desgaste, botones del día a día."
+      },
+      "icon": "disc",
+      "settings": [
+        {
+          "key": "robot",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Robot",
+            "fr": "Robot",
+            "de": "Roboter",
+            "es": "Robot"
+          },
+          "description": {
+            "en": "Leave empty to show the first robot of the account.",
+            "fr": "Laissez vide pour afficher le premier robot du compte.",
+            "de": "Leer lassen, um den ersten Roboter des Kontos anzuzeigen.",
+            "es": "Déjelo vacío para mostrar el primer robot de la cuenta."
+          },
+          "required": false
+        },
+        {
+          "key": "list",
+          "type": "select",
+          "label": {
+            "en": "List",
+            "fr": "Liste",
+            "de": "Liste",
+            "es": "Lista"
+          },
+          "description": {
+            "en": "What the list under the map shows.",
+            "fr": "Ce que montre la liste sous la carte.",
+            "de": "Was die Liste unter der Karte zeigt.",
+            "es": "Lo que muestra la lista bajo el mapa."
+          },
+          "required": false,
+          "default": "maintenance",
+          "options": [
+            {
+              "value": "maintenance",
+              "label": {
+                "en": "Battery, last clean and wear of the parts",
+                "fr": "Batterie, dernier nettoyage et usure des pièces",
+                "de": "Akku, letzte Reinigung und Verschleiß der Teile",
+                "es": "Batería, última limpieza y desgaste de las piezas"
+              }
+            },
+            {
+              "value": "settings",
+              "label": {
+                "en": "Battery, settings and last clean",
+                "fr": "Batterie, réglages et dernier nettoyage",
+                "de": "Akku, Einstellungen und letzte Reinigung",
+                "es": "Batería, ajustes y última limpieza"
+              }
+            }
+          ]
+        }
+      ],
+      "action_timeout_seconds": 20
+    },
+    {
+      "key": "quick_clean",
+      "label": {
+        "en": "Quick clean",
+        "fr": "Nettoyage express",
+        "de": "Schnellreinigung",
+        "es": "Limpieza rápida"
+      },
+      "description": {
+        "en": "Up to four buttons: shortcuts of the app, rooms, or several rooms.",
+        "fr": "Jusqu'à quatre boutons : raccourcis de l'application, pièces, ou plusieurs pièces.",
+        "de": "Bis zu vier Tasten: Verknüpfungen der App, Räume oder mehrere Räume.",
+        "es": "Hasta cuatro botones: atajos de la aplicación, habitaciones o varias habitaciones."
+      },
+      "icon": "zap",
+      "settings": [
+        {
+          "key": "robot",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Robot",
+            "fr": "Robot",
+            "de": "Roboter",
+            "es": "Robot"
+          },
+          "description": {
+            "en": "Leave empty to show the first robot of the account.",
+            "fr": "Laissez vide pour afficher le premier robot du compte.",
+            "de": "Leer lassen, um den ersten Roboter des Kontos anzuzeigen.",
+            "es": "Déjelo vacío para mostrar el primer robot de la cuenta."
+          },
+          "required": false
+        },
+        {
+          "key": "button_1",
+          "type": "string",
+          "label": {
+            "en": "Button 1",
+            "fr": "Bouton 1",
+            "de": "Taste 1",
+            "es": "Botón 1"
+          },
+          "description": {
+            "en": "A shortcut or a room as Gladys shows it; several rooms: \"Kitchen + Living room\".",
+            "fr": "Un raccourci ou une pièce, tel que Gladys l'affiche ; plusieurs pièces : « Cuisine + Salon ».",
+            "de": "Eine Verknüpfung oder ein Raum, wie Gladys ihn anzeigt; mehrere Räume: „Küche + Wohnzimmer“.",
+            "es": "Un atajo o una habitación tal como lo muestra Gladys; varias habitaciones: «Cocina + Salón»."
+          },
+          "required": false
+        },
+        {
+          "key": "button_2",
+          "type": "string",
+          "label": {
+            "en": "Button 2",
+            "fr": "Bouton 2",
+            "de": "Taste 2",
+            "es": "Botón 2"
+          },
+          "description": {
+            "en": "A shortcut or a room as Gladys shows it; several rooms: \"Kitchen + Living room\".",
+            "fr": "Un raccourci ou une pièce, tel que Gladys l'affiche ; plusieurs pièces : « Cuisine + Salon ».",
+            "de": "Eine Verknüpfung oder ein Raum, wie Gladys ihn anzeigt; mehrere Räume: „Küche + Wohnzimmer“.",
+            "es": "Un atajo o una habitación tal como lo muestra Gladys; varias habitaciones: «Cocina + Salón»."
+          },
+          "required": false
+        },
+        {
+          "key": "button_3",
+          "type": "string",
+          "label": {
+            "en": "Button 3",
+            "fr": "Bouton 3",
+            "de": "Taste 3",
+            "es": "Botón 3"
+          },
+          "description": {
+            "en": "A shortcut or a room as Gladys shows it; several rooms: \"Kitchen + Living room\".",
+            "fr": "Un raccourci ou une pièce, tel que Gladys l'affiche ; plusieurs pièces : « Cuisine + Salon ».",
+            "de": "Eine Verknüpfung oder ein Raum, wie Gladys ihn anzeigt; mehrere Räume: „Küche + Wohnzimmer“.",
+            "es": "Un atajo o una habitación tal como lo muestra Gladys; varias habitaciones: «Cocina + Salón»."
+          },
+          "required": false
+        },
+        {
+          "key": "button_4",
+          "type": "string",
+          "label": {
+            "en": "Button 4",
+            "fr": "Bouton 4",
+            "de": "Taste 4",
+            "es": "Botón 4"
+          },
+          "description": {
+            "en": "A shortcut or a room as Gladys shows it; several rooms: \"Kitchen + Living room\".",
+            "fr": "Un raccourci ou une pièce, tel que Gladys l'affiche ; plusieurs pièces : « Cuisine + Salon ».",
+            "de": "Eine Verknüpfung oder ein Raum, wie Gladys ihn anzeigt; mehrere Räume: „Küche + Wohnzimmer“.",
+            "es": "Un atajo o una habitación tal como lo muestra Gladys; varias habitaciones: «Cocina + Salón»."
+          },
+          "required": false
+        }
+      ],
+      "action_timeout_seconds": 20
+    },
+    {
+      "key": "robot_setting",
+      "label": {
+        "en": "Robot setting",
+        "fr": "Réglage du robot",
+        "de": "Roboter-Einstellung",
+        "es": "Ajuste del robot"
+      },
+      "description": {
+        "en": "One setting of the app as buttons: mode, suction, route, wetness…",
+        "fr": "Un réglage de l'appli en boutons : mode, aspiration, itinéraire, humidité…",
+        "de": "Eine Einstellung der App als Tasten: Modus, Saugleistung, Route, Feuchtigkeit…",
+        "es": "Un ajuste de la aplicación en botones: modo, succión, ruta, humedad…"
+      },
+      "icon": "sliders",
+      "settings": [
+        {
+          "key": "robot",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Robot",
+            "fr": "Robot",
+            "de": "Roboter",
+            "es": "Robot"
+          },
+          "description": {
+            "en": "Leave empty to show the first robot of the account.",
+            "fr": "Laissez vide pour afficher le premier robot du compte.",
+            "de": "Leer lassen, um den ersten Roboter des Kontos anzuzeigen.",
+            "es": "Déjelo vacío para mostrar el primer robot de la cuenta."
+          },
+          "required": false
+        },
+        {
+          "key": "setting",
+          "type": "select",
+          "label": {
+            "en": "Setting",
+            "fr": "Réglage",
+            "de": "Einstellung",
+            "es": "Ajuste"
+          },
+          "description": {
+            "en": "Add one widget per setting to show.",
+            "fr": "Ajoutez un widget par réglage à afficher.",
+            "de": "Füge pro anzuzeigender Einstellung ein Widget hinzu.",
+            "es": "Añada un widget por cada ajuste que quiera mostrar."
+          },
+          "required": false,
+          "default": "cleaning_mode",
+          "options": [
+            {
+              "value": "cleaning_mode",
+              "label": {
+                "en": "Cleaning mode",
+                "fr": "Mode de nettoyage",
+                "de": "Reinigungsmodus",
+                "es": "Modo de limpieza"
+              }
+            },
+            {
+              "value": "suction",
+              "label": {
+                "en": "Suction power",
+                "fr": "Puissance d'aspiration",
+                "de": "Saugleistung",
+                "es": "Potencia de succión"
+              }
+            },
+            {
+              "value": "max_suction",
+              "label": {
+                "en": "Max suction power",
+                "fr": "Puissance d'aspiration maximale",
+                "de": "Maximale Saugleistung",
+                "es": "Potencia de succión máxima"
+              }
+            },
+            {
+              "value": "route",
+              "label": {
+                "en": "Cleaning route",
+                "fr": "Itinéraire",
+                "de": "Reinigungsroute",
+                "es": "Ruta de limpieza"
+              }
+            },
+            {
+              "value": "wetness",
+              "label": {
+                "en": "Mop wetness",
+                "fr": "Humidité de la serpillière",
+                "de": "Feuchtigkeit des Wischmopps",
+                "es": "Humedad de la mopa"
+              }
+            },
+            {
+              "value": "wash_frequency",
+              "label": {
+                "en": "Mop washing frequency",
+                "fr": "Fréquence de lavage de la serpillière",
+                "de": "Häufigkeit der Mopp-Wäsche",
+                "es": "Frecuencia de lavado de la mopa"
+              }
+            }
+          ]
+        }
+      ],
+      "action_timeout_seconds": 20
+    },
+    {
+      "key": "maintenance",
+      "label": {
+        "en": "Robot maintenance",
+        "fr": "Entretien du robot",
+        "de": "Roboter-Wartung",
+        "es": "Mantenimiento del robot"
+      },
+      "description": {
+        "en": "The wear of each part of the robot, the most worn first.",
+        "fr": "L'usure de chaque pièce du robot, la plus usée d'abord.",
+        "de": "Der Verschleiß jedes Teils des Roboters, das am stärksten abgenutzte zuerst.",
+        "es": "El desgaste de cada pieza del robot, la más desgastada primero."
+      },
+      "icon": "tool",
+      "settings": [
+        {
+          "key": "robot",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Robot",
+            "fr": "Robot",
+            "de": "Roboter",
+            "es": "Robot"
+          },
+          "description": {
+            "en": "Leave empty to show the first robot of the account.",
+            "fr": "Laissez vide pour afficher le premier robot du compte.",
+            "de": "Leer lassen, um den ersten Roboter des Kontos anzuzeigen.",
+            "es": "Déjelo vacío para mostrar el primer robot de la cuenta."
+          },
+          "required": false
+        }
+      ]
+    }
+  ]
+}

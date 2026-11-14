@@ -1,0 +1,533 @@
+// The integration logic against the fake MOVAhome cloud and its MQTT broker,
+// in process, with an in-memory SDK stub: discovery, publication rules, the
+// real-time loop, commands, the room selector and a refused session.
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import * as mqttLibrary from 'mqtt';
+import { validateWidgetContent, validateWidgetImage } from '@gladysassistant/integration-sdk';
+
+import { MovaCloud, hashPassword } from '../src/mova/cloud.js';
+import { MovaIntegration } from '../src/integration.js';
+import { CONFIG_KEYS } from '../src/session.js';
+import { ACCOUNT, ROBOT, startFakeMova } from './helpers/fakeMova.js';
+import { createFakeGladys, silentLogger } from './helpers/fakeGladys.js';
+import { waitUntil } from './helpers/fakeGladysHost.js';
+
+// The fake broker speaks plain MQTT; the real one is TLS.
+const plainMqtt = {
+  connect: (url, options) => mqttLibrary.connect(url.replace('mqtts://', 'mqtt://'), options),
+};
+
+function setup(fake, config, timings = {}, dataDir = null) {
+  const gladys = createFakeGladys({ config });
+  const mova = new MovaIntegration({
+    gladys,
+    logger: silentLogger,
+    dataDir: dataDir || mkdtempSync(path.join(tmpdir(), 'gladys-mova-')),
+    mqtt: plainMqtt,
+    createCloud: (options) => new MovaCloud({ ...options, baseUrl: fake.base }),
+    timings: { REFRESH_AFTER_COMMAND_MS: [], ...timings },
+  });
+  return { gladys, mova };
+}
+
+const storedSession = () => ({
+  [CONFIG_KEYS.USERNAME]: ACCOUNT.username,
+  [CONFIG_KEYS.REGION]: 'eu',
+  [CONFIG_KEYS.PASSWORD_HASH]: hashPassword(ACCOUNT.password),
+  [CONFIG_KEYS.REFRESH_TOKEN]: 'refresh-1',
+});
+
+const code = (externalId) => externalId.split(':').pop();
+
+test('a linked account, from discovery to commands', async (t) => {
+  const fake = await startFakeMova();
+  const { gladys, mova } = setup(fake, storedSession());
+  t.after(async () => {
+    mova.stopAll();
+    await fake.close();
+  });
+  const ids = gladys.externalIds('vacuum', ROBOT.did);
+  const statesOf = (feature) =>
+    gladys.states.filter((state) => state.device_feature_external_id === ids.feature(feature));
+
+  await t.test('reopens the stored session and discovers the robot only', async () => {
+    await mova.onConnected();
+    const devices = gladys.discovered.at(-1);
+    assert.equal(devices.length, 1, 'the stick vacuum of the account is not a robot');
+    const [device] = devices;
+    assert.equal(device.external_id, ids.device);
+    assert.equal(device.name, ROBOT.name);
+    assert.equal(device.model, ROBOT.displayName);
+    assert.equal(device.should_poll, true);
+    assert.equal(device.poll_frequency, 60000);
+    assert.deepEqual(
+      device.features.map((f) => code(f.external_id)),
+      [
+        'state',
+        'run-mode',
+        'dock',
+        'pause',
+        'cleaning-mode',
+        'suction',
+        'mop-wash-area',
+        'route',
+        'battery',
+        'error',
+        'room',
+        'room-pick-3',
+        'room-pick-4',
+        'room-pick-2',
+        'room-pick-1',
+        'clean-rooms',
+        'shortcut-32',
+        'shortcut-33',
+        'locate',
+        'consumable-main-brush',
+        'consumable-side-brush',
+        'consumable-filter',
+        'consumable-sensor',
+        'consumable-mop-pad',
+      ],
+    );
+    // the rooms come from the encrypted map, sorted by name
+    const room = device.features.find((f) => code(f.external_id) === 'room');
+    assert.deepEqual(
+      room.supported_options.map((option) => option.label),
+      ['—', 'Chambre de Léa', 'Chambre principale 2', 'Cuisine', 'Salon'],
+    );
+    assert.equal(
+      device.features.find((f) => code(f.external_id) === 'shortcut-32').name,
+      'Raccourci - Après le dîner',
+    );
+    assert.deepEqual(gladys.statuses.at(-1), {
+      connected: true,
+      message: {
+        en: `Linked account: ${ACCOUNT.username} (Europe).`,
+        fr: `Compte lié : ${ACCOUNT.username} (Europe).`,
+        de: `Verknüpftes Konto: ${ACCOUNT.username} (Europa).`,
+        es: `Cuenta vinculada: ${ACCOUNT.username} (Europa).`,
+      },
+    });
+  });
+
+  await t.test('publishes nothing for a robot that is not created in Gladys', async () => {
+    assert.equal(gladys.states.length, 0);
+    assert.equal(gladys.transports.length, 0);
+  });
+
+  await t.test('a created robot gets all its states at once, then only the changes', async () => {
+    gladys.devices.push(gladys.discovered.at(-1)[0]);
+    await mova.onDeviceCreated(gladys.devices[0]);
+    const byCode = Object.fromEntries(
+      gladys.states.map((state) => [code(state.device_feature_external_id), state]),
+    );
+    assert.equal(byCode.state.state, 6); // docked, charging completed
+    assert.equal(byCode['run-mode'].state, 0);
+    assert.equal(byCode.suction.text, 'standard');
+    assert.equal(byCode.battery.state, 100);
+    assert.equal(byCode.error.text, 'Aucune erreur');
+    assert.equal(byCode['consumable-main-brush'].state, 87);
+    // the room selector starts on "—"
+    assert.equal(byCode.room.text, 'none');
+    assert.deepEqual(gladys.transports.at(-1), { external_id: ids.device, transport: 'cloud' });
+
+    const count = gladys.states.length;
+    await mova.poll(gladys.devices[0]);
+    assert.equal(gladys.states.length, count, 'a poll with no change publishes nothing');
+  });
+
+  await t.test('a change pushed by the robot is published at once', async () => {
+    await waitUntil(() => mova.robots.get(ROBOT.did).channel.connected, 'the real-time channel');
+    await fake.change([
+      ['2.1', 1],
+      ['4.1', 2],
+      ['4.7', 1],
+      ['3.2', 2],
+    ]);
+    await waitUntil(() => statesOf('state').at(-1).state === 1, 'the running state');
+    assert.equal(statesOf('run-mode').at(-1).state, 1);
+  });
+
+  await t.test('commands reach the robot, whose answer comes back', async () => {
+    await mova.setValue(gladys.devices[0], { external_id: ids.feature('run-mode') }, 0);
+    assert.equal(fake.state.commands.at(-1).method, 'action');
+    assert.deepEqual(
+      [fake.state.commands.at(-1).params.siid, fake.state.commands.at(-1).params.aiid],
+      [4, 2],
+    );
+    await waitUntil(() => statesOf('run-mode').at(-1).state === 0, 'the robot stopping');
+
+    await mova.setValue(gladys.devices[0], { external_id: ids.feature('suction') }, 'turbo');
+    assert.deepEqual(fake.state.commands.at(-1).params, [
+      { did: ROBOT.did, siid: 4, piid: 4, value: 3 },
+    ]);
+    // optimistic: the confirmed value is already published
+    assert.equal(statesOf('suction').at(-1).text, 'turbo');
+
+    await assert.rejects(
+      mova.setValue(gladys.devices[0], { external_id: ids.feature('suction') }, 'max'),
+      /Unknown suction level/,
+    );
+
+    // the cleaning route: one setting written, the others kept
+    await mova.setValue(gladys.devices[0], { external_id: ids.feature('route') }, 'deep');
+    assert.deepEqual(fake.state.commands.at(-1).params, [
+      { did: ROBOT.did, siid: 4, piid: 50, value: '{"k":"CleanRoute","v":3}' },
+    ]);
+    assert.equal(statesOf('route').at(-1).text, 'deep');
+    assert.match(fake.state.props.get('4.50'), /"LessColl"/);
+
+    await mova.setValue(gladys.devices[0], { external_id: ids.feature('shortcut-33') }, 1);
+    assert.deepEqual(fake.state.commands.at(-1).params.in, [
+      { piid: 1, value: 25 },
+      { piid: 10, value: '33' },
+    ]);
+  });
+
+  await t.test('the mop settings, and several rooms cleaned at once', async () => {
+    const device = gladys.devices[0];
+    await mova.setValue(device, { external_id: ids.feature('cleaning-mode') }, 'sweeping');
+    // the mode bits only, then the deep route a sweeping robot cannot take
+    assert.deepEqual(
+      fake.state.commands.slice(-2).map((command) => command.params[0].piid),
+      [23, 50],
+    );
+    assert.equal(fake.state.commands.at(-2).params[0].value, (3 << 16) | (20 << 8) | 2);
+    assert.equal(fake.state.commands.at(-1).params[0].value, '{"k":"CleanRoute","v":1}');
+    assert.equal(statesOf('cleaning-mode').at(-1).text, 'sweeping');
+    assert.equal(statesOf('route').at(-1).text, 'standard');
+
+    await mova.setValue(device, { external_id: ids.feature('room-pick-4') }, 1);
+    await mova.setValue(device, { external_id: ids.feature('room-pick-1') }, 1);
+    assert.equal(statesOf('room-pick-4').at(-1).state, 1);
+    // kept across restarts, in the order picked
+    assert.deepEqual(mova.store.get(ROBOT.did).picks, ['4', '1']);
+    await mova.setValue(device, { external_id: ids.feature('clean-rooms') }, 1);
+    const rooms = () =>
+      JSON.parse(fake.state.commands.at(-1).params.in[1].value).selects.map((entry) => entry[0]);
+    assert.equal(fake.state.commands.at(-1).params.in[0].value, 18);
+    // in the order of the clicks, as in the app
+    assert.deepEqual(rooms(), [4, 1]);
+    // switched on again, a room already on keeps its place…
+    await mova.setValue(device, { external_id: ids.feature('room-pick-4') }, 1);
+    await mova.setValue(device, { external_id: ids.feature('clean-rooms') }, 1);
+    assert.deepEqual(rooms(), [4, 1]);
+    // … switched off then on, it goes last
+    await mova.setValue(device, { external_id: ids.feature('room-pick-4') }, 0);
+    await mova.setValue(device, { external_id: ids.feature('room-pick-4') }, 1);
+    assert.deepEqual(mova.store.get(ROBOT.did).picks, ['1', '4']);
+    await mova.setValue(device, { external_id: ids.feature('clean-rooms') }, 1);
+    assert.deepEqual(rooms(), [1, 4]);
+    await mova.setValue(device, { external_id: ids.feature('room-pick-1') }, 0);
+    await mova.setValue(device, { external_id: ids.feature('room-pick-4') }, 0);
+  });
+
+  await t.test('the widgets: content, map image, buttons and nudges', async () => {
+    const content = mova.widgetContent('robot', { settings: {}, language: 'fr' });
+    assert.deepEqual(validateWidgetContent(content), []);
+    assert.ok(content.components[0].text.startsWith(`${ROBOT.name} · `));
+    // the battery opens the list, the wear of the parts follows
+    assert.equal(content.components.find((c) => c.type === 'status').items[0].label, 'Batterie');
+    // the map read at discovery, drawn and served by its key
+    const { key } = content.components.find((c) => c.type === 'image');
+    assert.deepEqual(validateWidgetImage(mova.widgetImage(key)), []);
+    assert.throws(() => mova.widgetImage('map-unknown'), /Unknown image/);
+    // the settings may name the robot by its device
+    const named = mova.widgetContent('maintenance', {
+      settings: { robot: ids.device },
+      language: 'en',
+    });
+    assert.deepEqual(validateWidgetContent(named), []);
+    assert.match(named.components[0].text, /^Maintenance · /);
+
+    const quick = mova.widgetContent('quick_clean', {
+      settings: { button_1: 'Cuisine' },
+      language: 'fr',
+    });
+    const button = quick.components.find((c) => c.type === 'button');
+    const message = await mova.widgetAction(button.action.key, button.action.params);
+    assert.deepEqual(message, {
+      fr: 'Nettoyage lancé : Cuisine',
+      en: 'Cleaning started: Kitchen',
+      de: 'Reinigung gestartet: Küche',
+      es: 'Limpieza iniciada: Cocina',
+    });
+    const clean = fake.state.commands.at(-1).params.in;
+    assert.deepEqual(
+      JSON.parse(clean[1].value).selects.map((entry) => entry[0]),
+      [2],
+    );
+    await assert.rejects(mova.widgetAction('explode', { did: ROBOT.did }), /Unknown widget action/);
+
+    // rooms picked: the clean button of the robot widget cleans them…
+    const device = gladys.devices[0];
+    await mova.setValue(device, { external_id: ids.feature('room-pick-4') }, 1);
+    const start = () =>
+      mova
+        .widgetContent('robot', { settings: {}, language: 'fr' })
+        .components.find((c) => c.type === 'button' && c.action.key === 'start');
+    assert.equal(start().label, 'Nettoyer la sélection');
+    const picked = await mova.widgetAction('start', start().action.params);
+    assert.deepEqual(picked, {
+      en: 'Cleaning of the selection started',
+      fr: 'Nettoyage de la sélection lancé',
+      de: 'Reinigung der Auswahl gestartet',
+      es: 'Limpieza de la selección iniciada',
+    });
+    const selection = fake.state.commands.at(-1).params.in;
+    assert.equal(selection[0].value, 18);
+    assert.deepEqual(
+      JSON.parse(selection[1].value).selects.map((entry) => entry[0]),
+      [4],
+    );
+    // … as they are when it is pressed, the whole home once none is left
+    const params = start().action.params;
+    await mova.setValue(device, { external_id: ids.feature('room-pick-4') }, 0);
+    assert.deepEqual(await mova.widgetAction('start', params), {
+      en: 'Cleaning started',
+      fr: 'Nettoyage lancé',
+      de: 'Reinigung gestartet',
+      es: 'Limpieza iniciada',
+    });
+    const full = fake.state.commands.at(-1).params;
+    assert.deepEqual([full.siid, full.aiid], [2, 1]);
+
+    // a setting as buttons: the lit one is the robot's, a press sets another
+    const suction = mova.widgetContent('robot_setting', {
+      settings: { setting: 'suction' },
+      language: 'fr',
+    });
+    assert.deepEqual(validateWidgetContent(suction), []);
+    const quiet = suction.components.find((c) => c.type === 'button' && c.label === 'Silencieux');
+    // the current choice is ticked (a style would not show in dark mode)
+    assert.equal(quiet.icon, 'circle');
+    assert.equal(quiet.style, undefined);
+    const said = await mova.widgetAction(quiet.action.key, quiet.action.params);
+    assert.deepEqual(said, {
+      en: 'Suction: Quiet',
+      fr: 'Aspiration : Silencieux',
+      de: 'Saugen: Leise',
+      es: 'Succión: Silencioso',
+    });
+    assert.deepEqual(fake.state.commands.at(-1).params, [
+      { did: ROBOT.did, siid: 4, piid: 4, value: 0 },
+    ]);
+    const after = mova.widgetContent('robot_setting', {
+      settings: { setting: 'suction' },
+      language: 'fr',
+    });
+    assert.equal(
+      after.components.find((c) => c.type === 'button' && c.label === 'Silencieux').icon,
+      'check-circle',
+    );
+    // back to the suction the next tests expect
+    const max = after.components.find((c) => c.type === 'button' && c.label === 'Max');
+    await mova.widgetAction(max.action.key, max.action.params);
+
+    // the robot leaving or reaching its base: the map is re-read at once
+    const robot = mova.robots.get(ROBOT.did);
+    robot.mapTriedAt = Date.now();
+    mova.applyProps(robot, [['2.1', 5]]);
+    assert.equal(robot.mapTriedAt, 0);
+    mova.applyProps(robot, [['2.2', 0]]);
+    robot.mapTriedAt = 1;
+    mova.applyProps(robot, [['3.1', 99]]);
+    assert.equal(robot.mapTriedAt, 1, 'a battery change keeps the map');
+
+    // a state change nudges the widgets that show it
+    await waitUntil(() => gladys.widgetRefreshes.includes('robot'), 'a widget nudge');
+    assert.ok(gladys.widgetRefreshes.includes('quick_clean'));
+  });
+
+  await t.test('the pause button pauses, then resumes', async () => {
+    await fake.change([
+      ['2.1', 1],
+      ['4.1', 2],
+      ['4.7', 1],
+    ]);
+    await waitUntil(() => statesOf('state').at(-1).state === 1, 'the running state');
+    await mova.setValue(gladys.devices[0], { external_id: ids.feature('pause') }, 1);
+    const pause = fake.state.commands.at(-1).params;
+    assert.deepEqual([pause.siid, pause.aiid], [2, 2]);
+    await waitUntil(() => statesOf('state').at(-1).state === 2, 'the paused state');
+    await mova.setValue(gladys.devices[0], { external_id: ids.feature('pause') }, 1);
+    const resume = fake.state.commands.at(-1).params;
+    assert.deepEqual([resume.siid, resume.aiid], [2, 1]);
+    await waitUntil(() => statesOf('state').at(-1).state === 1, 'running again');
+  });
+
+  await t.test('a room clean, then the selector goes back to "—" when it is over', async () => {
+    await mova.setValue(gladys.devices[0], { external_id: ids.feature('room') }, '2');
+    const clean = fake.state.commands.at(-1).params;
+    assert.deepEqual([clean.siid, clean.aiid], [4, 1]);
+    // suction turbo (3, set above), mop humidity 3 from the station
+    assert.deepEqual(clean.in, [
+      { piid: 1, value: 18 },
+      { piid: 10, value: '{"selects":[[2,1,3,3,1]]}' },
+    ]);
+    await waitUntil(() => mova.robots.get(ROBOT.did).roomCleaning?.started, 'the room clean');
+    const resets = () => statesOf('room').filter((state) => state.text === 'none').length;
+    const before = resets();
+    await fake.change([
+      ['4.1', 0],
+      ['4.7', 0],
+      ['2.1', 13],
+      ['3.2', 3],
+    ]);
+    await waitUntil(() => resets() === before + 1, 'the room selector reset');
+  });
+
+  await t.test('the transport badge says when the real-time channel is down', async () => {
+    const robot = mova.robots.get(ROBOT.did);
+    robot.channel.stop();
+    robot.channel = { connected: false, isDown: () => true, stop() {}, useCredentials() {} };
+    await mova.publishTransport(robot);
+    assert.equal(gladys.transports.at(-1).degraded, true);
+    assert.match(gladys.transports.at(-1).message.fr, /temps réel/);
+  });
+});
+
+test('a session MOVA refuses stops everything and asks to link again', async (t) => {
+  const fake = await startFakeMova();
+  // only a refresh token: nothing to log in again with
+  const { gladys, mova } = setup(fake, { [CONFIG_KEYS.REFRESH_TOKEN]: 'refresh-1' });
+  t.after(async () => {
+    mova.stopAll();
+    await fake.close();
+  });
+  await mova.onConnected();
+  assert.equal(gladys.statuses.at(-1).connected, true);
+  gladys.devices.push(gladys.discovered.at(-1)[0]);
+
+  fake.state.refreshToken = 'revoked';
+  fake.expireAccessToken();
+  await assert.rejects(mova.poll(gladys.devices[0]));
+  assert.deepEqual(gladys.statuses.at(-1).connected, false);
+  assert.match(gladys.statuses.at(-1).message.fr, /Liez à nouveau le compte/);
+
+  // no more calls to the cloud with dead credentials
+  const tokenRequests = fake.state.tokenRequests.length;
+  await assert.rejects(mova.poll(gladys.devices[0]), /Link the account again/);
+  assert.equal(fake.state.tokenRequests.length, tokenRequests);
+  assert.equal(mova.robots.get(ROBOT.did).channel, null);
+});
+
+test('linking an account, then unlinking it', async (t) => {
+  const fake = await startFakeMova({ mapInAnswer: false, roomsInSavedMap: true });
+  const { gladys, mova } = setup(fake, {});
+  t.after(async () => {
+    mova.stopAll();
+    await fake.close();
+  });
+  await mova.onConnected();
+  assert.equal(gladys.statuses.at(-1).connected, false);
+  assert.equal(fake.state.tokenRequests.length, 0, 'nothing is sent without an account');
+
+  assert.match((await mova.link({ username: '  ', password: 'x' })).fr, /Saisissez l'adresse/);
+  const refused = await mova.link({ username: ACCOUNT.username, password: 'nope', region: 'eu' });
+  assert.match(refused.fr, /MOVA a refusé ces identifiants dans la région Europe/);
+  assert.equal(gladys.configWrites.length, 0, 'a refused link stores nothing');
+
+  const linked = await mova.link({
+    username: ` ${ACCOUNT.username} `,
+    password: ACCOUNT.password,
+    region: 'eu',
+  });
+  assert.equal(
+    linked.fr,
+    "Compte lié, 1 robot(s) trouvé(s). Ouvrez l'onglet Découverte pour les ajouter à Gladys.",
+  );
+  const stored = gladys.configWrites.at(-1);
+  assert.equal(stored[CONFIG_KEYS.USERNAME], ACCOUNT.username);
+  assert.equal(stored[CONFIG_KEYS.PASSWORD_HASH], hashPassword(ACCOUNT.password));
+  assert.equal(stored[CONFIG_KEYS.REFRESH_TOKEN], 'refresh-1');
+  assert.ok(
+    !JSON.stringify(gladys.configWrites).includes(ACCOUNT.password),
+    'the clear password is never stored',
+  );
+  // the map location came on the real-time channel this time, and the rooms
+  // from the saved map embedded in the current one
+  const room = gladys.discovered.at(-1)[0].features.find((f) => code(f.external_id) === 'room');
+  assert.equal(room.supported_options.length, 5);
+
+  const unlinked = await mova.unlink();
+  assert.match(unlinked.fr, /Le compte a été délié/);
+  assert.deepEqual(gladys.discovered.at(-1), []);
+  assert.equal(gladys.configWrites.at(-1)[CONFIG_KEYS.PASSWORD_HASH], '');
+  assert.equal(gladys.statuses.at(-1).connected, false);
+});
+
+test('the language renames the rooms and the error text', async (t) => {
+  const fake = await startFakeMova();
+  const { gladys, mova } = setup(fake, storedSession());
+  t.after(async () => {
+    mova.stopAll();
+    await fake.close();
+  });
+  await mova.onConnected();
+  gladys.devices.push(gladys.discovered.at(-1)[0]);
+  await mova.onDeviceCreated(gladys.devices[0]);
+  await mova.onConfigUpdated({ ...gladys.config, [CONFIG_KEYS.LANGUAGE]: 'en' });
+  const room = gladys.discovered.at(-1)[0].features.find((f) => code(f.external_id) === 'room');
+  assert.deepEqual(
+    room.supported_options.map((option) => option.label),
+    ['—', 'Chambre de Léa', 'Kitchen', 'Living room', 'Primary bedroom 2'],
+  );
+  assert.equal(gladys.states.at(-1).text, 'No error');
+});
+
+test('the order of the rooms picked survives a restart of the container', async (t) => {
+  const fake = await startFakeMova();
+  const dataDir = mkdtempSync(path.join(tmpdir(), 'gladys-mova-'));
+  const first = setup(fake, storedSession(), {}, dataDir);
+  t.after(async () => {
+    first.mova.stopAll();
+    await fake.close();
+  });
+  await first.mova.onConnected();
+  first.gladys.devices.push(first.gladys.discovered.at(-1)[0]);
+  const ids = first.gladys.externalIds('vacuum', ROBOT.did);
+  for (const room of ['2', '4', '1']) {
+    await first.mova.setValue(
+      first.gladys.devices[0],
+      { external_id: ids.feature(`room-pick-${room}`) },
+      1,
+    );
+  }
+  first.mova.stopAll();
+
+  // A new container: the same /data, a new integration.
+  const second = setup(fake, first.gladys.config, {}, dataDir);
+  t.after(() => second.mova.stopAll());
+  await second.mova.onConnected();
+  second.gladys.devices.push(second.gladys.discovered.at(-1)[0]);
+  await second.mova.onDeviceCreated(second.gladys.devices[0]);
+  const picked = (room) =>
+    second.gladys.states
+      .filter((state) => state.device_feature_external_id === ids.feature(`room-pick-${room}`))
+      .at(-1).state;
+  assert.deepEqual(['1', '2', '4'].map(picked), [1, 1, 1]);
+  await second.mova.setValue(
+    second.gladys.devices[0],
+    { external_id: ids.feature('clean-rooms') },
+    1,
+  );
+  assert.deepEqual(
+    JSON.parse(fake.state.commands.at(-1).params.in[1].value).selects.map((entry) => entry[0]),
+    [2, 4, 1],
+  );
+  // The selection the widgets show follows the same order.
+  const quick = second.mova.widgetContent('quick_clean', {
+    settings: { button_1: 'Clean the selection' },
+    language: 'en',
+  });
+  assert.equal(
+    quick.components.find((c) => c.type === 'status').items[0].value,
+    'Kitchen, Primary bedroom 2, Living room',
+  );
+});

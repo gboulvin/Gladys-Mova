@@ -1,0 +1,26 @@
+Gladys MOVA integration
+Copyright 2026 the Gladys MOVA integration contributors
+
+This product is a derivative work of:
+
+- gladys-dreame (https://github.com/guim31/gladys-dreame), the Dreame
+  integration of the Gladys Assistant store, by Guilhem (guim31), licensed
+  under the Apache License, Version 2.0. The device model, the cloud and MQTT
+  clients, the map decoding and rendering, the dashboard widgets, the
+  translations and most of the tests come from it; they were adapted to the
+  MOVAhome cloud (hosts, app identity, tenant, regions), and the scene
+  triggers and scene actions were added.
+
+- integration-template-js
+  (https://github.com/GladysAssistant/integration-template-js), the official
+  template of Gladys Assistant external integrations, licensed under the
+  Apache License, Version 2.0 (project scaffolding, workflows, release
+  scripts).
+
+It includes data and protocol knowledge from:
+
+- Tasshack/dreame-vacuum (https://github.com/Tasshack/dreame-vacuum), MIT
+  License, Copyright (c) 2022 Tasshack: see src/data/NOTICE.md.
+
+MOVA, MOVAhome and Dreame are trademarks of their respective owners. This
+project is not affiliated with, nor endorsed by, them.
